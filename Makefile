@@ -1,14 +1,17 @@
 EXECUTORS_PLUGIN_DIRS=$(wildcard ./contrib/executors/*)
 SOURCES_PLUGIN_DIRS=$(wildcard ./contrib/sources/*)
 
-all: build-plugins
-
-clean: clean-plugins
+all: install protoc build-plugins run
 
 build-plugins: $(EXECUTORS_PLUGIN_DIRS) $(SOURCES_PLUGIN_DIRS)
 
-clean-plugins:
-	rm -f ./contrib/build/*
+run:
+	go run main.go
+
+install:
+	go get -u google.golang.org/protobuf@v1.28.1
+	go get -u google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.2.0
+	go get -u google.golang.org/grpc@v1.50.0
 
 protoc:
 	# Clean
