@@ -1,3 +1,4 @@
 contrib/build
 plugin/source/proto/*.go
 plugin/executor/proto/*.go
+.idea
