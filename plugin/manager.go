@@ -156,7 +156,7 @@ func (m *Manager) Start() error {
 		client := plugin.NewClient(&plugin.ClientConfig{
 			Plugins:          m.pluginMap(metadata),
 			VersionedPlugins: nil,
-			Cmd:              exec.Command(metadata.Path),
+			Cmd:              exec.Command(metadata.Path), // Plugin specific params goes here
 			AllowedProtocols: []plugin.Protocol{plugin.ProtocolGRPC},
 			HandshakeConfig: plugin.HandshakeConfig{
 				ProtocolVersion:  1,
