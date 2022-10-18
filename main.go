@@ -5,17 +5,18 @@ import (
 	"fmt"
 	cloudevents "github.com/cloudevents/sdk-go/v2"
 	"github.com/huseyinbabal/botkube-plugins-playground/plugin"
-	plugin3 "github.com/huseyinbabal/botkube-plugins-playground/plugin/executor"
-	plugin2 "github.com/huseyinbabal/botkube-plugins-playground/plugin/source"
+	botkubeexecutorplugin "github.com/huseyinbabal/botkube-plugins/api/executor"
+	botkubesourceplugin "github.com/huseyinbabal/botkube-plugins/api/source"
 	"log"
 	"math/rand"
+	"os"
+	"path/filepath"
 	"time"
 )
 
 func main() {
 	go handleCloudEvents()
-	go initializeSourcePlugins()
-	go initializeExecutorPlugins()
+	go initializePlugins()
 	time.Sleep(time.Hour * 2)
 }
 
@@ -34,48 +35,52 @@ func handleCloudEvents() {
 	log.Fatal(err)
 }
 
-func initializeSourcePlugins() {
-	sourcePlugins := plugin.NewManager("./contrib/build", plugin.TypeSource, &plugin2.SourcePlugin{})
-	defer sourcePlugins.Dispose()
-	if err := sourcePlugins.Initialize(); err != nil {
-		log.Fatalf("failed to initialize source plugins %v", err)
+func initializePlugins() {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		log.Fatalf("failed to find user home folder. %v", err)
 	}
-	if err := sourcePlugins.Start(); err != nil {
-		log.Fatalf("failed to start source plugins %v", err)
+	plugins := plugin.NewManager(filepath.Join(homeDir, ".botkube-plugins-cache"))
+	err = plugins.Initialize([]string{"kubernetes", "kubectl"})
+	if err != nil {
+		log.Fatalf("failedt to initialize plugins %v", err)
 	}
+	defer plugins.Dispose()
+	if err := plugins.Start(); err != nil {
+		log.Fatalf("failed to start plugins %v", err)
+	}
+
+	go initializeSourcePlugins(plugins)
+	go initializeExecutorPlugins(plugins)
+}
+
+func initializeSourcePlugins(manager *plugin.Manager) {
 	events := make(chan interface{}, 1)
+	// Let say that we have only kubernetes plugin enabled
 	for _, pl := range []string{"kubernetes"} {
-		adapter, err := sourcePlugins.GetAdapter(pl)
+		adapter, err := manager.GetAdapter(pl)
 		if err != nil {
 			log.Fatal(err)
 		}
-		adapter.(plugin2.Source).Consume(events)
+		adapter.(botkubesourceplugin.Source).Consume(events)
 	}
 	for {
 		select {
 		case event := <-events:
 			eventMap := event.(map[string]string)
-			fmt.Println("Event receved. Name: %", eventMap["Name"])
+			fmt.Println("Event received. Name: %", eventMap["Name"])
 		}
 	}
 }
 
-func initializeExecutorPlugins() {
-	executorPlugins := plugin.NewManager("./contrib/build", plugin.TypeExecutor, &plugin3.ExecutorPlugin{})
-	defer executorPlugins.Dispose()
-	if err := executorPlugins.Initialize(); err != nil {
-		log.Fatalf("failed to initialize executor plugins %v", err)
-	}
-	if err := executorPlugins.Start(); err != nil {
-		log.Fatalf("failed to start executor plugins %v", err)
-	}
+func initializeExecutorPlugins(manager *plugin.Manager) {
 
 	// Assume that we have message from slack and by using prefix, we resolve which plugin to use. e.g. kubectl
-	adapter, err := executorPlugins.GetAdapter("kubectl")
+	adapter, err := manager.GetAdapter("kubectl")
 	if err != nil {
 		log.Fatal(err)
 	}
-	kubectl := adapter.(plugin3.Executor)
+	kubectl := adapter.(botkubeexecutorplugin.Executor)
 
 	commands := []string{
 		"kubectl get pods",
